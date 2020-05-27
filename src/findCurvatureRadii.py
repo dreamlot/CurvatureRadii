@@ -23,18 +23,52 @@ from findCurvatureRadii2 import findCurvatureR
 # show image
 from imshow import imshow
 
-'''
-# show image
-def imshow(img,showresult=True,name='result',x=800,y=600):
-    if not showresult:
-        return
 
-    cv2.namedWindow(str(name),cv2.WINDOW_NORMAL);
-    cv2.imshow(str(name),img);
-    cv2.resizeWindow(str(name), x,y);
-    cv2.waitKey(0);
-    cv2.destroyAllWindows();
-'''
+# Remove straight section. Straight lines have infinite curvature radius.
+def removeConcave(points,tol=1e-13):
+    m,n = points.shape;
+    
+    # Check each three adjacent points from the last in the list.
+    # If it is a straing section, remove the middle point.
+    # In this way, when a point is removed, the two remaining points from the
+    # last step enters the next iteration.
+    
+    
+    # First, determine if the points are in clockwise or counter- order.
+    FLAG_CLDIR= 1; # conter-clockwise
+    dind = 3
+    r1 = points[dind,:] - points[0,:]
+    r2 = points[dind*2,:] - points[dind,:]
+    if np.cross(r1,r2) < 0:
+        # clockwise
+        FLAG_CLDIR = -1;
+        
+    # Then, remove the concave points
+    for ite in range(m-1,1,-1):
+        r1 = points[ite-2,:] - points[ite-1,:]
+        r2 = points[ite-1,:] - points[ite,:]
+        
+        # Use cross product to determine if the vector between points
+        # is rotating in the clockwise direction or the opposite.
+        # If it is different from the overall direction, 
+        # remove the middle point.
+        if np.cross(r1,r2) * FLAG_CLDIR < 0:
+            #print(ite,r1,r2)
+            np.delete(points,ite-1,0)
+            
+        
+    # At last, check the two sections containing the first and last points.
+    r1 = points[1,:] - points[0,:]
+    r2 = points[0,:] - points[-1,:]
+    if 1-abs( np.dot(r1,r2) / np.linalg.norm(r1) / np.linalg.norm(r2) ) < tol:
+        points.delete(points,0,0)
+    r1 = points[0,:] - points[-1,:]
+    r2 = points[-1,:] - points[-2,:]
+    if 1-abs( np.dot(r1,r2) / np.linalg.norm(r1) / np.linalg.norm(r2) ) < tol:
+        np.delete(points,-1,0)
+
+    return(points)
+
 # Interpolate the contour for long straight sections
 def interpolateContour(points,insert=1,distancetol=5):
     points = np.asarray(points)
@@ -63,6 +97,8 @@ def interpolateContour(points,insert=1,distancetol=5):
                 points = np.insert(points,i,[x,y],axis=0)
     return(points)
 
+
+
 # Get the oil blob perimeter
 # Returns the grayscale image and a 2D array of xy coordinates
 # of points on the contour.
@@ -86,9 +122,6 @@ def findOilBlob(filename,threshold=127,iterations=[2,8,6],showresult=False):
     # filter image
     imgray = cv2.bilateralFilter(imgray,5,40,40)
 
-    # cut half of the image
-    # use only the LHS
-    imgray = imgray[:,0:int(imgray.shape[1]/2)];
 
     # cut image edges
     imReference = imReference[2:-2,2:-2,:]
@@ -183,11 +216,14 @@ def findCurvatureRadius(points,window=5):
 
     # half window length used to fit the circle
     n = int(window/2);
+    
+        
+
 
     #print(N)
     # fitted circle
     result = np.zeros([N,3]);
-    
+
     try:
         for i in range(N):
             if i < n+1:
@@ -196,7 +232,7 @@ def findCurvatureRadius(points,window=5):
                 indx = np.concatenate((np.arange(i-n,N), np.arange(0,i+n-N)))
             else:
                 indx = np.arange((i-n),(i+n+1))
-                
+
             #result[i,:] = findCircle(points[indx,:]);
             x = points[indx,0]
             y = points[indx,1]
@@ -205,8 +241,8 @@ def findCurvatureRadius(points,window=5):
         print(i,n,N)
         print(N+i-n,i+n+1)
         print(i-n,i+n-N)
-        
-            
+
+
     return( result )
 
 
@@ -518,17 +554,27 @@ def test1():
 
 
 if __name__ == '__main__':
-    
+    '''
+    cut the image, use only the left hand side half
+    '''
     # working directory
     sourcepath = 'F:/ferrofluid_experiment/postprocessing/noflow_rotateMag/ts3_1fps';
-    targetpath = sourcepath +'/target';
+    targetpath = sourcepath +'/cut';
     
+    from cut import cutall
+    cutall(y=[0,0.5],sourcepath=sourcepath,targetpath=targetpath)
+
+
+    # working directory
+    sourcepath = 'F:/ferrofluid_experiment/postprocessing/noflow_rotateMag/ts3_1fps/cut';
+    targetpath = sourcepath +'/../result';
+
     # parameters
     thre = 127;
     iteration = [1,5,4]
     showresult = False;
     dotsize = 1;
-    
+
 
     # average filter:
     # average this number of points to generate a point
@@ -536,33 +582,37 @@ if __name__ == '__main__':
 
     # number of points used to fit the circle
     window = [19]
-    
+
     # load the files in the source directory
     # @Vaibhav
     # https://stackoverflow.com/questions/3207219/how-do-i-list-all-files-of-a-directory
     from os.path import isfile, join
     files = [f for f in os.listdir(sourcepath) if isfile(join(sourcepath, f))]
-    
+
     # prepare the output directory
     try:
         os.mkdir(targetpath)
     except FileExistsError:
         pass
-    
+
     print('Processing...')
     for ite in enumerate(files):
         print(' '+ite[1])
-        
+
         filename = sourcepath+'/'+ite[1];
-        
+
         # get the raw contour
         cha1,contours,imorig = findOilBlob(filename,iterations=iteration,showresult=showresult);
-        
+
         # shrink unwanted dimension
         oilcontour = contours[1][:,0,:].astype(float);
+        '''
         # interpolate straight section
         oilcontour = interpolateContour(oilcontour,insert=freqratio-1,distancetol=10)
-    
+        '''
+        # remove concave sections
+        oilcontour = removeConcave(oilcontour)
+
         # filter and subsample
         # averaging filter
         oilcontour[:,0] = avgFilter(oilcontour[:,0], int(freqratio))
@@ -571,14 +621,14 @@ if __name__ == '__main__':
         ind = np.arange(0,int(len(oilcontour)/freqratio));
         oilcontour = oilcontour[ind*freqratio]
         
-        
+
         # compute curvature
         curvatureradius = findCurvatureRadius(oilcontour,window=window[0]);
-        
+
         # recover the three channels of original figure
         imorig = cv2.cvtColor(imorig,cv2.COLOR_GRAY2BGR)
-        
-        
+
+
         # write points into image
         '''
         maxradius = max(curvatureradius[:,2])
@@ -603,8 +653,9 @@ if __name__ == '__main__':
             imorig[indx,indy-1,:] = [0,0,int(curvatureradiusplot[lp1])];
             imorig[indx,indy+1,:] = [0,0,int(curvatureradiusplot[lp1])];
             '''
-            
+
         #imshow(imorig)
         savename = targetpath+'/'+ite[1]
         cv2.imwrite(savename,imorig)
+        
         #break

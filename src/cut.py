@@ -7,10 +7,9 @@ Cut the figure
 @author: Ningyu Wang
 """
 
- 
+
 import cv2
-import numpy as np
-    
+
 def cut(im, x=[0.0,1.0], y=[0.0,1.0], FlagPercent=True):
     if FlagPercent:
         if im.ndim == 2:
@@ -25,10 +24,31 @@ def cut(im, x=[0.0,1.0], y=[0.0,1.0], FlagPercent=True):
         elif im.nim == 3:
             im = im[x[0]:x[1], y[0]:y[1],:];
     return(im)
-    
-    
+
+def cutall(x=[0.0,1.0],y=[0.0,1.0],sourcepath='.',targetpath='.'):
+    # get the list of all figures in the working directory
+
+    import os
+    from os.path import isfile, join
+    files = [f for f in os.listdir(sourcepath) if isfile(join(sourcepath, f))]
+
+    # create the targe directory
+    try:
+        os.mkdir(targetpath);
+    except FileExistsError:
+        pass
+    # cut the images and save to the target directory
+    for ite in enumerate(files):
+        filename = sourcepath+'/'+ite[1];
+        im = cv2.imread(filename, cv2.IMREAD_COLOR)
+        # cut the image
+        im = cut(im,x=x,y=y)
+        savename = targetpath+'/'+ite[1];
+        cv2.imwrite(savename,im)
+
+
 if __name__ == '__main__':
-    
+
     workpath = '.';
     filename = 'reference.jpg';
     try:
@@ -43,17 +63,16 @@ if __name__ == '__main__':
         fp.close();
     except:
         pass
-    
+
     # get the list of all figures in the working directory
-    import os
     pathorigin = workpath+'/origin';
     try:
         os.mkdir(pathorigin);
     except FileExistsError:
         pass
     files = os.listdir(workpath)
-    
-    # make contour 
+
+    # cut the images and save to the target directory
     for ite in enumerate(files):
         if ite[1][-3:] != 'jpg':
             #print(ite[1][-3:])
