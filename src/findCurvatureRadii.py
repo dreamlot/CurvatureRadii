@@ -27,13 +27,13 @@ from imshow import imshow
 # Remove straight section. Straight lines have infinite curvature radius.
 def removeConcave(points,tol=1e-13):
     m,n = points.shape;
-    
+
     # Check each three adjacent points from the last in the list.
-    # If it is a straing section, remove the middle point.
+    # If it is a concaving section, remove the middle point.
     # In this way, when a point is removed, the two remaining points from the
     # last step enters the next iteration.
-    
-    
+
+
     # First, determine if the points are in clockwise or counter- order.
     FLAG_CLDIR= 1; # conter-clockwise
     dind = 3
@@ -42,32 +42,55 @@ def removeConcave(points,tol=1e-13):
     if np.cross(r1,r2) < 0:
         # clockwise
         FLAG_CLDIR = -1;
-        
+
     # Then, remove the concave points
     for ite in range(m-1,1,-1):
         r1 = points[ite-2,:] - points[ite-1,:]
         r2 = points[ite-1,:] - points[ite,:]
-        
+
         # Use cross product to determine if the vector between points
         # is rotating in the clockwise direction or the opposite.
-        # If it is different from the overall direction, 
+        # If it is different from the overall direction,
         # remove the middle point.
         if np.cross(r1,r2) * FLAG_CLDIR < 0:
             #print(ite,r1,r2)
-            np.delete(points,ite-1,0)
-            
-        
+            points = np.delete(points,ite-1,0)
+
+
     # At last, check the two sections containing the first and last points.
     r1 = points[1,:] - points[0,:]
     r2 = points[0,:] - points[-1,:]
     if 1-abs( np.dot(r1,r2) / np.linalg.norm(r1) / np.linalg.norm(r2) ) < tol:
-        points.delete(points,0,0)
+        points = np.delete(points,0,0)
     r1 = points[0,:] - points[-1,:]
     r2 = points[-1,:] - points[-2,:]
     if 1-abs( np.dot(r1,r2) / np.linalg.norm(r1) / np.linalg.norm(r2) ) < tol:
-        np.delete(points,-1,0)
+        points = np.delete(points,-1,0)
+        
+    return(points)
+
+
+# Subsample the regions of high point density
+def subSample(points,distancetol=5):
+    m,n = points.shape;
+    '''
+    # if three points are adjacent, remove the middle point
+    for ite in range(m-1,1,-1):
+        r = points[ite,:] - points[ite-2,:]
+        if np.linalg.norm(r,2) < distancetol:
+            np.delete(points,ite-1,0)
+    '''
+    # if two points are adjacent, remove the earlier point
+    for ite in range(m-1,0,-1):
+        r = np.linalg.norm(points[ite,:] - points[ite-1,:],2)
+        #print(r)
+        if r < distancetol:
+            #print('delete',ite)
+            points = np.delete(points,ite-1,0)
 
     return(points)
+
+
 
 # Interpolate the contour for long straight sections
 def interpolateContour(points,insert=1,distancetol=5):
@@ -141,7 +164,7 @@ def findOilBlob(filename,threshold=127,iterations=[2,8,6],showresult=False):
     # get the contours
     #ret, thresh = cv2.threshold(dilation, 127, 255, 0)
     ret, thresh = cv2.threshold(dilation, 127, 255, cv2.THRESH_OTSU)
-    imshow(thresh)
+    imshow(thresh,showresult)
     '''
     # The cv2.findContours() function removed the first output.
     tmpim, contours, hierarchy = cv2.findContours(thresh, method=cv2.RETR_TREE, \
@@ -216,8 +239,8 @@ def findCurvatureRadius(points,window=5):
 
     # half window length used to fit the circle
     n = int(window/2);
-    
-        
+
+
 
 
     #print(N)
@@ -390,7 +413,7 @@ def test1():
     cha1,contours,__ = findOilBlob(filename,iterations=iteration,showresult=showresult);
     #cv2.drawContours(cha1, contours, contourIdx = -1, color=(255,0,0), \
     #                 thickness=4)
-    #imshow(cha1)
+    #imshow(cha1,showresult)
 
     # shrink unwanted dimension
     oilcontour = contours[1][:,0,:].astype(float);
@@ -558,27 +581,29 @@ if __name__ == '__main__':
     cut the image, use only the left hand side half
     '''
     # working directory
-    sourcepath = 'F:/ferrofluid_experiment/postprocessing/noflow_rotateMag/ts3_1fps';
-    targetpath = sourcepath +'/cut';
-    
+    sourcepath_cut = 'F:/ferrofluid_experiment/postprocessing/noflow_rotateMag/ts3_2fps';
+    targetpath_cut = sourcepath_cut +'/cut';
+
     from cut import cutall
-    cutall(y=[0,0.5],sourcepath=sourcepath,targetpath=targetpath)
+    #cutall(y=[0,0.5],sourcepath=sourcepath_cut,targetpath=targetpath_cut)
 
 
     # working directory
-    sourcepath = 'F:/ferrofluid_experiment/postprocessing/noflow_rotateMag/ts3_1fps/cut';
+    #sourcepath = 'F:/ferrofluid_experiment/postprocessing/noflow_rotateMag/ts3_1fps/cut';
+    sourcepath = targetpath_cut
     targetpath = sourcepath +'/../result';
 
     # parameters
     thre = 127;
     iteration = [1,5,4]
     showresult = False;
-    dotsize = 1;
+    dotsize = 3;
+    subsampledistance = 9;
 
 
     # average filter:
     # average this number of points to generate a point
-    freqratio = 3;
+    freqratio = 2;
 
     # number of points used to fit the circle
     window = [19]
@@ -595,7 +620,15 @@ if __name__ == '__main__':
     except FileExistsError:
         pass
 
+
+    # record the max and min of curvature radius
+    maxradiustotal = 0;
+    minradiustotal = 0;
+
+
     print('Processing...')
+    # This is for debuging. Run only certain number of images.
+    count = 0;
     for ite in enumerate(files):
         print(' '+ite[1])
 
@@ -610,17 +643,25 @@ if __name__ == '__main__':
         # interpolate straight section
         oilcontour = interpolateContour(oilcontour,insert=freqratio-1,distancetol=10)
         '''
+        # subsample
+        '''
+        ind = np.arange(0,int(len(oilcontour)/freqratio));
+        oilcontour = oilcontour[ind*freqratio]
+        '''
+        print('size before subsample: ',oilcontour.shape)
+        oilcontour = subSample(oilcontour,distancetol=subsampledistance)
+        print('size after subsample: ',oilcontour.shape)
         # remove concave sections
         oilcontour = removeConcave(oilcontour)
+        print('size after removal of concave points: ',oilcontour.shape)
 
-        # filter and subsample
+
+        '''
         # averaging filter
         oilcontour[:,0] = avgFilter(oilcontour[:,0], int(freqratio))
         oilcontour[:,1] = avgFilter(oilcontour[:,1], int(freqratio))
-        # subsample
-        ind = np.arange(0,int(len(oilcontour)/freqratio));
-        oilcontour = oilcontour[ind*freqratio]
-        
+        '''
+
 
         # compute curvature
         curvatureradius = findCurvatureRadius(oilcontour,window=window[0]);
@@ -630,12 +671,19 @@ if __name__ == '__main__':
 
 
         # write points into image
-        '''
-        maxradius = max(curvatureradius[:,2])
-        minradius = min(curvatureradius[:,2])
-        '''
-        maxradius = 250;
+
+        #maxradius = max(curvatureradius[:,2])
+        #minradius = min(curvatureradius[:,2])
+
+        maxradius = 200;
         minradius = 100;
+        
+        # See what is the range of the cavature radius
+        if maxradiustotal < maxradius:
+            maxradiustotal = np.copy(maxradius)
+        if minradiustotal > minradius:
+            minradiustotal = np.copy(minradius)
+        
         numcontourpoint = curvatureradius.shape[0]
         curvatureradiusplot = (curvatureradius[:,2]-minradius) / (maxradius-minradius) * 256
         Nx,Ny,__ = imorig.shape
@@ -646,16 +694,19 @@ if __name__ == '__main__':
             # color
             imorig[indx-2:indx+3,indy-2:indy+3,[0,1]] = 0
             imorig[indx-2:indx+3,indy-2:indy+3,2] = curvatureradiusplot[lp1]
-            '''
-            imorig[indx,indy,:]   = [0,0,int(curvatureradiusplot[lp1])];
-            imorig[indx-1,indy,:] = [0,0,int(curvatureradiusplot[lp1])];
-            imorig[indx+1,indy,:] = [0,0,int(curvatureradiusplot[lp1])];
-            imorig[indx,indy-1,:] = [0,0,int(curvatureradiusplot[lp1])];
-            imorig[indx,indy+1,:] = [0,0,int(curvatureradiusplot[lp1])];
-            '''
 
-        #imshow(imorig)
+        imshow(imorig,showresult)
         savename = targetpath+'/'+ite[1]
         cv2.imwrite(savename,imorig)
         
-        #break
+        '''
+        count = count+1
+        if count > 5:
+            break
+        '''
+        
+    print(maxradiustotal,minradiustotal)
+    
+    
+    plt.figure()
+    plt.plot(curvatureradius[:,2],'sr-')
