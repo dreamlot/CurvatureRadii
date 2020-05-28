@@ -23,6 +23,32 @@ from findCurvatureRadii2 import findCurvatureR
 # show image
 from imshow import imshow
 
+# Determine if the points on the contour are in clockwise or counter- order.
+def isCounterClockwise(points,step=3,FLAG_GLOBAL=True):
+    # counter-clockwise
+    FLAG_CLDIR = 1;
+    if FLAG_GLOBAL:
+        # center of contour
+        cx = np.mean(points[:,0])
+        cy = np.mean(points[:,1])
+
+        # phase angle of points
+        pa1 = atan(points[0,0],points[0,1],cx,cy)
+        pa2 = atan(points[step,0],points[step,1],cx,cy)
+
+        if pa1 > pa2:
+            # clockwise
+            FLAG_CLDIR = -1;
+    else:
+        m,n = points.shape;
+        hm = int(m/2)
+        r1 = points[hm,:] - points[0,:]
+        r2 = points[-1,:] - points[hm,:]
+
+        if np.cross(r1,r2) < 0:
+            FLAG_CLDIR = -1;
+
+    return(FLAG_CLDIR)
 
 # Remove straight section. Straight lines have infinite curvature radius.
 def removeConcave(points,tol=1e-13):
@@ -33,17 +59,9 @@ def removeConcave(points,tol=1e-13):
     # In this way, when a point is removed, the two remaining points from the
     # last step enters the next iteration.
 
+    FLAG_CLDIR = isCounterClockwise(points);
 
-    # First, determine if the points are in clockwise or counter- order.
-    FLAG_CLDIR= 1; # conter-clockwise
-    dind = 3
-    r1 = points[dind,:] - points[0,:]
-    r2 = points[dind*2,:] - points[dind,:]
-    if np.cross(r1,r2) < 0:
-        # clockwise
-        FLAG_CLDIR = -1;
-
-    # Then, remove the concave points
+    # remove the concave points
     for ite in range(m-1,1,-1):
         r1 = points[ite-2,:] - points[ite-1,:]
         r2 = points[ite-1,:] - points[ite,:]
@@ -66,7 +84,7 @@ def removeConcave(points,tol=1e-13):
     r2 = points[-1,:] - points[-2,:]
     if 1-abs( np.dot(r1,r2) / np.linalg.norm(r1) / np.linalg.norm(r2) ) < tol:
         points = np.delete(points,-1,0)
-        
+
     return(points)
 
 
@@ -140,7 +158,7 @@ def findOilBlob(filename,threshold=127,iterations=[2,8,6],showresult=False):
     imgrayorig = imgray.copy()
     #imgSPLIT = cv2.split(imReference);
     #imgray = imgSPLIT[1];
-    imshow(imgray,showresult)
+    imshow(imgray,showresult,name='grayscale')
 
     # filter image
     imgray = cv2.bilateralFilter(imgray,5,40,40)
@@ -153,33 +171,39 @@ def findOilBlob(filename,threshold=127,iterations=[2,8,6],showresult=False):
     # denoise
     imgray = cv2.fastNlMeansDenoising(imgray,None,10,7,21);
 
+
+    # threshold
+    ret, thresh = cv2.threshold(imgray, 127, 255, cv2.THRESH_OTSU)
+    imshow(thresh,showresult,name='threshold')
+
+
     # erode and dilate
     kernel = np.ones((5,5),np.uint8)
-    dilation = cv2.dilate(imgray,kernel,iterations = iterations[0])
-    erosion = cv2.erode(dilation,kernel,iterations = iterations[1])
-    imshow(erosion,showresult);
-    dilation = cv2.dilate(erosion,kernel,iterations = iterations[2])
-    imshow(dilation,showresult);
+    erosion = cv2.erode(thresh,kernel,iterations = iterations[0])
+    dilation = cv2.dilate(erosion,kernel,iterations = iterations[1])
+    imshow(dilation,showresult,name='dilation');
+    erosion = cv2.erode(dilation,kernel,iterations = iterations[2])
+    imshow(erosion,showresult,name='erosion');
+
+
 
     # get the contours
-    #ret, thresh = cv2.threshold(dilation, 127, 255, 0)
-    ret, thresh = cv2.threshold(dilation, 127, 255, cv2.THRESH_OTSU)
-    imshow(thresh,showresult)
     '''
     # The cv2.findContours() function removed the first output.
     tmpim, contours, hierarchy = cv2.findContours(thresh, method=cv2.RETR_TREE, \
                                               mode=cv2.CHAIN_APPROX_SIMPLE)
     '''
-    contours, hierarchy = cv2.findContours(thresh, method=cv2.RETR_TREE, \
+    contours, hierarchy = cv2.findContours(erosion, method=cv2.RETR_TREE, \
                                        mode=cv2.CHAIN_APPROX_SIMPLE)
     cv2.drawContours(imgray, contours, contourIdx = -1, color=(255,0,0), \
                      thickness=4)
-    imshow(imgray,showresult);
+    imshow(imgray,showresult,name='contours');
 
     # First, the real interfaces have a lot of points.
     # Abandon the contours with only several points.
     # Keep only the longest contours.
-    contours = sorted(contours,key=len);
+    contours = sorted(contours,key=len,reverse=True);
+    contoursorig = np.copy(contours)
     contours = contours[0:3];
 
     # Then, there are three longest contours found:
@@ -203,7 +227,7 @@ def findOilBlob(filename,threshold=127,iterations=[2,8,6],showresult=False):
     print(y)
     '''
 
-    return (imgray,contours,imgrayorig)
+    return (imgray,contours,imgrayorig,contoursorig)
 
 # Function of a circle
 def funcCircle(para,x,y):
@@ -240,8 +264,8 @@ def findCurvatureRadius(points,window=5):
     # half window length used to fit the circle
     n = int(window/2);
 
-
-
+    # counter-clockwise direction of the points
+    FLAG_CLDIR = isCounterClockwise(points)
 
     #print(N)
     # fitted circle
@@ -260,11 +284,20 @@ def findCurvatureRadius(points,window=5):
             x = points[indx,0]
             y = points[indx,1]
             result[i,:] = findCurvatureR(x,y)
+
+            # find the local clock direction
+            FLAG_CLDIRindx = isCounterClockwise(points[indx,:],step=min(N,3),FLAG_GLOBAL=False)
+            # If the local clock direction is different from the global value
+            # return negative curvature radius.
+            result[i,:] *= FLAG_CLDIRindx * FLAG_CLDIR;
+
     except:
+        print('Error finding curvature radius at point ', i)
+        '''
         print(i,n,N)
         print(N+i-n,i+n+1)
         print(i-n,i+n-N)
-
+        '''
 
     return( result )
 
@@ -319,33 +352,56 @@ def generateCircle(xyr,n=100):
 
 # compute the arctangent from xy coordinates
 def atan(x,y,x0=0,y0=0):
-    n = len(x);
     x = x-x0;
     y = y-y0;
-    if n != len(y):
-        raise('The length of x and length of y should be the same!')
+    try:
+        n = len(x);
+        if n != len(y):
+            raise('The length of x and length of y should be the same!')
 
-    theta = np.zeros(n);
-    for i in range(n):
-        if x[i] == 0 and y[i] == 0:
-            theta[i] = 0
-        elif x[i] == 0 and y[i] > 0:
-            theta[i] = np.pi/2
-        elif x[i] == 0 and y[i] < 0:
-            theta[i] = np.pi*3/2
-        elif y[i] == 0 and x[i] > 0:
-            theta[i] = 0
-        elif y[i] == 0 and x[i] < 0:
-            theta[i] = np.pi
+        theta = np.zeros(n);
+        for i in range(n):
+            if x[i] == 0 and y[i] == 0:
+                theta[i] = 0
+            elif x[i] == 0 and y[i] > 0:
+                theta[i] = np.pi/2
+            elif x[i] == 0 and y[i] < 0:
+                theta[i] = np.pi*3/2
+            elif y[i] == 0 and x[i] > 0:
+                theta[i] = 0
+            elif y[i] == 0 and x[i] < 0:
+                theta[i] = np.pi
 
-        elif x[i] >= 0 and y[i] >= 0:
-            theta[i] = np.arctan(y[i]/x[i]);
-        elif x[i] >= 0 and y[i] < 0:
-            theta[i] = 2 * np.pi - np.arctan(abs(y[i]/x[i]));
-        elif x[i] < 0 and y[i] >= 0:
-            theta[i] = np.pi - np.arctan(abs(y[i]/x[i]))
-        elif x[i] < 0 and y[i] < 0:
-            theta[i] = np.pi + np.arctan(abs(y[i]/x[i]))
+            elif x[i] >= 0 and y[i] >= 0:
+                theta[i] = np.arctan(y[i]/x[i]);
+            elif x[i] >= 0 and y[i] < 0:
+                theta[i] = 2 * np.pi - np.arctan(abs(y[i]/x[i]));
+            elif x[i] < 0 and y[i] >= 0:
+                theta[i] = np.pi - np.arctan(abs(y[i]/x[i]))
+            elif x[i] < 0 and y[i] < 0:
+                theta[i] = np.pi + np.arctan(abs(y[i]/x[i]))
+
+    except TypeError:
+        if x == 0 and y == 0:
+            theta = 0
+        elif x == 0 and y > 0:
+            theta = np.pi/2
+        elif x == 0 and y < 0:
+            theta = np.pi*3/2
+        elif y == 0 and x > 0:
+            theta = 0
+        elif y == 0 and x < 0:
+            theta = np.pi
+
+        elif x >= 0 and y >= 0:
+            theta = np.arctan(y/x);
+        elif x >= 0 and y < 0:
+            theta = 2 * np.pi - np.arctan(abs(y/x));
+        elif x < 0 and y >= 0:
+            theta = np.pi - np.arctan(abs(y/x))
+        elif x < 0 and y < 0:
+            theta = np.pi + np.arctan(abs(y/x))
+
     return(theta)
 
 
@@ -635,7 +691,7 @@ if __name__ == '__main__':
         filename = sourcepath+'/'+ite[1];
 
         # get the raw contour
-        cha1,contours,imorig = findOilBlob(filename,iterations=iteration,showresult=showresult);
+        cha1,contours,imorig,__ = findOilBlob(filename,iterations=iteration,showresult=showresult);
 
         # shrink unwanted dimension
         oilcontour = contours[1][:,0,:].astype(float);
@@ -677,13 +733,13 @@ if __name__ == '__main__':
 
         maxradius = 190;
         minradius = 130;
-        
+
         # See what is the range of the cavature radius
         if maxradiustotal < maxradius:
             maxradiustotal = np.copy(maxradius)
         if minradiustotal > minradius:
             minradiustotal = np.copy(minradius)
-        
+
         numcontourpoint = curvatureradius.shape[0]
         curvatureradiusplot = (curvatureradius[:,2]-minradius) / (maxradius-minradius) * 256
         Nx,Ny,__ = imorig.shape
@@ -705,12 +761,13 @@ if __name__ == '__main__':
             break
         '''
         
+
     print(maxradiustotal,minradiustotal)
-    
+
     # plot the curvature radius of the last image
     plt.figure()
     plt.plot(curvatureradius[:,2],'sr-')
-    
+
     # plot the color bar for the curvature radius
     tmp = np.linspace(0, 1, 256)
     fig = plt.figure()
@@ -719,16 +776,13 @@ if __name__ == '__main__':
     for ite in range(20):
         img[:,ite,0] = tmp
     h = plt.imshow(img)
-    
+
     plt.ylim(0,256)
     ax = plt.gca()
     ax.axes.get_xaxis().set_visible(False)
     ax.yaxis.tick_right()
-    t1 = round(minradius*220/1280);
-    t3 = round(maxradius*220/1280);
+    t1 = round(minradius*220/1280*2);
+    t3 = round(maxradius*220/1280*2);
     t2 = round((t1+t3)/2);
     plt.yticks(ticks=[0,128,256],labels=[t1,t2,t3])
     plt.title(r'$\mu m$')
-
-    
-    
