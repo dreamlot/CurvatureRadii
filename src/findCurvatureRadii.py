@@ -597,7 +597,7 @@ if __name__ == '__main__':
     thre = 127;
     iteration = [1,5,4]
     showresult = False;
-    dotsize = 3;
+    dotsize = 7;
     subsampledistance = 9;
 
 
@@ -675,8 +675,8 @@ if __name__ == '__main__':
         #maxradius = max(curvatureradius[:,2])
         #minradius = min(curvatureradius[:,2])
 
-        maxradius = 200;
-        minradius = 100;
+        maxradius = 190;
+        minradius = 130;
         
         # See what is the range of the cavature radius
         if maxradiustotal < maxradius:
@@ -692,8 +692,8 @@ if __name__ == '__main__':
             indy = int(oilcontour[lp1,0])
             indx = int(oilcontour[lp1,1])
             # color
-            imorig[indx-2:indx+3,indy-2:indy+3,[0,1]] = 0
-            imorig[indx-2:indx+3,indy-2:indy+3,2] = curvatureradiusplot[lp1]
+            imorig[indx-dotsize:indx+dotsize+1,indy-dotsize:indy+dotsize+1,[0,1]] = 0
+            imorig[indx-dotsize:indx+dotsize+1,indy-dotsize:indy+dotsize+1,2] = curvatureradiusplot[lp1]
 
         imshow(imorig,showresult)
         savename = targetpath+'/'+ite[1]
@@ -707,6 +707,28 @@ if __name__ == '__main__':
         
     print(maxradiustotal,minradiustotal)
     
-    
+    # plot the curvature radius of the last image
     plt.figure()
     plt.plot(curvatureradius[:,2],'sr-')
+    
+    # plot the color bar for the curvature radius
+    tmp = np.linspace(0, 1, 256)
+    fig = plt.figure()
+    z = np.zeros(tmp.shape)
+    img = np.zeros((len(tmp),20,3))
+    for ite in range(20):
+        img[:,ite,0] = tmp
+    h = plt.imshow(img)
+    
+    plt.ylim(0,256)
+    ax = plt.gca()
+    ax.axes.get_xaxis().set_visible(False)
+    ax.yaxis.tick_right()
+    t1 = round(minradius*220/1280);
+    t3 = round(maxradius*220/1280);
+    t2 = round((t1+t3)/2);
+    plt.yticks(ticks=[0,128,256],labels=[t1,t2,t3])
+    plt.title(r'$\mu m$')
+
+    
+    
