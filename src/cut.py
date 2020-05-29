@@ -39,6 +39,9 @@ def cutall(x=[0.0,1.0],y=[0.0,1.0],sourcepath='.',targetpath='.'):
         pass
     # cut the images and save to the target directory
     for ite in enumerate(files):
+        # skip Windows image preview files
+        if ite[1][-3:] == 'ini': continue
+
         filename = sourcepath+'/'+ite[1];
         im = cv2.imread(filename, cv2.IMREAD_COLOR)
         # cut the image

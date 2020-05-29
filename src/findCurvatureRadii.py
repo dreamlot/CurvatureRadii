@@ -143,7 +143,7 @@ def interpolateContour(points,insert=1,distancetol=5):
 # Get the oil blob perimeter
 # Returns the grayscale image and a 2D array of xy coordinates
 # of points on the contour.
-def findOilBlob(filename,threshold=127,iterations=[2,8,6],showresult=False):
+def findOilBlob(filename,threshold=127,color='gray',iterations=[2,8,6],showresult=False):
     #filename = "test.jpg"
     print("Reading image : ", filename)
     imReference = cv2.imread(filename, cv2.IMREAD_COLOR)
@@ -152,9 +152,13 @@ def findOilBlob(filename,threshold=127,iterations=[2,8,6],showresult=False):
     # filter image
     imReference = cv2.bilateralFilter(imReference,5,40,40)
     '''
-
+    
+    
     # convert to grayscale
-    imgray = cv2.cvtColor(imReference, cv2.COLOR_BGR2GRAY)
+    if color in ['red','RED','Red']:
+        imgray = imReference[:,:,2]
+    else:
+        imgray = cv2.cvtColor(imReference, cv2.COLOR_BGR2GRAY)
     imgrayorig = imgray.copy()
     #imgSPLIT = cv2.split(imReference);
     #imgray = imgSPLIT[1];
