@@ -8,7 +8,7 @@ Created on 2020-05-29 10:43
 """
 
 from findCurvatureRadii import os,np,cv2,plt
-from findCurvatureRadii import isCounterClockwise,removeConcave,subSample,findOilBlob,findCurvatureRadius
+from findCurvatureRadii import removeConcave,subSample,findOilBlob,findCurvatureRadius
 
 from imshow import imshow
 
