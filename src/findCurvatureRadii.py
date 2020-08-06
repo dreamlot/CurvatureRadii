@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 This program is to find the curvature radii along the oil blob perimeter.
-It studies only the oil blob on the left hand side.
-The figure will be cut in half and the right hand side half image would
-be abandoned.
-
+It studies only the largest oil blob.
+If there is a certain oil blob that you want to track, please cut the image properly.
 
 Created on Thu Feb 27 21:27:19 2020
 
@@ -126,7 +124,7 @@ def interpolateContour(points,insert=1,distancetol=5):
             points = np.insert(points,n,[x,y],axis=0)
     '''
 
-    # then, deall with other points
+    # then, deal with other points
     for i in range(n-1,0,-1):
         d = np.linalg.norm(points[i,:]-points[i-1,:]);
         if d > distancetol:
@@ -152,8 +150,8 @@ def findOilBlob(filename,threshold=127,color='gray',iterations=[2,8,6],showresul
     # filter image
     imReference = cv2.bilateralFilter(imReference,5,40,40)
     '''
-    
-    
+
+
     # convert to grayscale
     if color in ['red','RED','Red']:
         imgray = imReference[:,:,2]
@@ -193,7 +191,7 @@ def findOilBlob(filename,threshold=127,color='gray',iterations=[2,8,6],showresul
 
     # get the contours
     '''
-    # The cv2.findContours() function removed the first output.
+    # The cv2.findContours() function removed the first output in a newer version.
     tmpim, contours, hierarchy = cv2.findContours(thresh, method=cv2.RETR_TREE, \
                                               mode=cv2.CHAIN_APPROX_SIMPLE)
     '''
@@ -758,13 +756,13 @@ if __name__ == '__main__':
         imshow(imorig,showresult)
         savename = targetpath+'/'+ite[1]
         cv2.imwrite(savename,imorig)
-        
+
         '''
         count = count+1
         if count > 5:
             break
         '''
-        
+
 
     print(maxradiustotal,minradiustotal)
 
