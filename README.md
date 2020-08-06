@@ -7,4 +7,6 @@
  2. use adjacent points to fit circles
  3. visualize the radii of curvature
 
-Examples can be found in the findCurvatureRadii.py file, and also in run20191107ppt.py, though more than needed functions are provided.
+Examples can be found in the findCurvatureRadii.py file, and also in runexp1.py and run20191107ppt.py, though more than needed functions are provided.
+
+This program provides a radius of curvature computing function, but the one in findCurvatureRadii2.py is recommended, which is from the scipy cookbook website.

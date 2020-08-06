@@ -2,7 +2,7 @@
 """
 Created on Sun Nov 10 23:52:35 2019
 
-Cut the figure
+Cut the figure.
 
 @author: Ningyu Wang
 """
@@ -10,6 +10,7 @@ Cut the figure
 
 import cv2
 
+# Cut the given OpenCV image item and return the result. im is a 2D or 3D np array.
 def cut(im, x=[0.0,1.0], y=[0.0,1.0], FlagPercent=True):
     if FlagPercent:
         if im.ndim == 2:
@@ -25,6 +26,7 @@ def cut(im, x=[0.0,1.0], y=[0.0,1.0], FlagPercent=True):
             im = im[x[0]:x[1], y[0]:y[1],:];
     return(im)
 
+# Cut all images in a directory and store the results in a new path. im is a 2D or 3D np array.
 def cutall(x=[0.0,1.0],y=[0.0,1.0],sourcepath='.',targetpath='.'):
     # get the list of all figures in the working directory
 
