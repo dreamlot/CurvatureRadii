@@ -11,6 +11,9 @@ Cut the figure.
 import cv2
 
 # Cut the given OpenCV image item and return the result. im is a 2D or 3D np array.
+# By default, x and y are ranges in percentage, which means they are whithin
+# the range of [0.0,1.0]. If FlagFlagPercent is set to False, the cutting would be
+# based on pixels.
 def cut(im, x=[0.0,1.0], y=[0.0,1.0], FlagPercent=True):
     if FlagPercent:
         if im.ndim == 2:
@@ -26,7 +29,11 @@ def cut(im, x=[0.0,1.0], y=[0.0,1.0], FlagPercent=True):
             im = im[x[0]:x[1], y[0]:y[1],:];
     return(im)
 
-# Cut all images in a directory and store the results in a new path. im is a 2D or 3D np array.
+# Cut all images in a directory and store the results in a new path. im is a
+# 2D or 3D np array.
+# By default, x and y are ranges in percentage, which means they are whithin
+# the range of [0.0,1.0]. If FlagFlagPercent is set to False, the cutting would be
+# based on pixels.
 def cutall(x=[0.0,1.0],y=[0.0,1.0],sourcepath='.',targetpath='.'):
     # get the list of all figures in the working directory
 
